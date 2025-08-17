@@ -25,17 +25,19 @@ class DataBase:
     def get_events(self, date: date) -> List[Event]:
         return self.dates[date]
 
-    def add_event(self, new_event: Event):
+    def add_event(self, new_event: Event) -> UUID:
         id = uuid4()
         new_event.id = id
         self.events[id] = new_event
         self.dates[new_event.date].append(new_event)
         return id
 
-    def delete_event(self, id: UUID):
+    def delete_event(self, id: UUID) -> Event:
         event_date = self.events[id].date
-        new_events = [elem for elem in self.dates[event_date] if elem.id != id]
-        self.dates[event_date] = new_events
+        self.dates[event_date] = [elem for elem in self.dates[event_date] if elem.id != id]
+        if not self.dates[event_date]:
+            del self.dates[event_date]
+        
         returned_event = self.events[id]
         del self.events[id]
         return returned_event
