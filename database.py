@@ -42,10 +42,13 @@ class DataBase:
         del self.events[id]
         return returned_event
 
-    # TODO: check if date has changed and if so move it from one date time to another
     def update_event(self, new_event: Event):
-        self.events[new_event.id] = new_event
+        self.delete_event(new_event.id)
+        self._add_event_with_id_(new_event)
 
+    def _add_event_with_id_(self, new_event: Event):
+        self.events[new_event.id] = new_event
+        self.dates[new_event.date].append(new_event)
 
 def create_test_events(db: DataBase):
     event_today = Event("Walk the dog")
