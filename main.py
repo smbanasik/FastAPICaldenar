@@ -52,6 +52,13 @@ async def add_event(new_event: Event):
     id = app_db.add_event(db_event)
     return app_db.events[id]
 
+@app.delete("/events/remove/{id}")
+async def remove_event(id: UUID, should_return: bool = True):
+    event = app_db.delete_event(id)
+    if not should_return:
+        return {}
+    return event
+
 @app.get("/events/today")
 async def get_events_today():
     return app_db.dates[date.today()]

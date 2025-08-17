@@ -36,7 +36,9 @@ class DataBase:
         event_date = self.events[id].date
         new_events = [elem for elem in self.dates[event_date] if elem.id != id]
         self.dates[event_date] = new_events
+        returned_event = self.events[id]
         del self.events[id]
+        return returned_event
 
     # TODO: check if date has changed and if so move it from one date time to another
     def update_event(self, new_event: Event):
