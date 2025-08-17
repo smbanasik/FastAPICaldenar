@@ -26,6 +26,8 @@ class Event(BaseModel):
 app = FastAPI()
 app_db = db.DataBase()
 
+db.create_test_events(app_db)
+
 @app.get("/")
 async def get_main():
     message = "Welcome to the calendar! The time is currently: " + str(datetime.now())
@@ -33,7 +35,7 @@ async def get_main():
 
 @app.get("/today")
 async def get_today():
-    return {"date_time": str(datetime.now)}
+    return {"date_time": str(datetime.now())}
 
 @app.get("/events")
 async def get_events():

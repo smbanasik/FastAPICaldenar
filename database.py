@@ -1,4 +1,4 @@
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 from uuid import UUID, uuid4
 from typing import Dict, List
 from collections import defaultdict
@@ -9,10 +9,9 @@ class Event:
         self.date: date
         self.time: time | None = None
         self.id: UUID
-        self.name: str = ""
+        self.name: str = name
         self.description: str | None = None
         self.location: str | None = None
-
 
 # Store events
 class DataBase:
@@ -42,3 +41,17 @@ class DataBase:
     # TODO: check if date has changed and if so move it from one date time to another
     def update_event(self, new_event: Event):
         self.events[new_event.id] = new_event
+
+
+def create_test_events(db: DataBase):
+    event_today = Event("Walk the dog")
+    event_today.date = date.today()
+    event_today.time = datetime.now().time()
+    event_today.description = "Don't forget the leash and bags"
+    event_today.location = "The neighborhood"
+
+    event_tomorrow = Event("Grocery Store Trip")
+    event_tomorrow.date = date.today() + timedelta(days=1)
+
+    db.add_event(event_today)
+    db.add_event(event_tomorrow)
