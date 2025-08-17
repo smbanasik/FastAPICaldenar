@@ -53,5 +53,9 @@ async def add_event(new_event: Event):
     return app_db.events[id]
 
 @app.get("/events/today")
-async def get_events_today(max_events: int | None = None):
+async def get_events_today():
     return app_db.dates[date.today()]
+
+@app.get("/events/{date}")
+async def get_events_date(date: date):
+    return app_db.dates[date]
