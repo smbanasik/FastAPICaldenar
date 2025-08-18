@@ -17,6 +17,7 @@ class Event:
 class DataBase:
     def __init__(self):
         self.events: Dict[UUID, Event] = {}
+        # TODO: consider swapping to a dict[year, dict[month, dict[day]]] ???
         self.dates: Dict[date, List[Event]] = defaultdict(list)
 
     def get_event(self, id: UUID) -> Event:

@@ -37,45 +37,50 @@ def fill_db_event(new_event: Event) -> db.Event:
 
 @app.get("/")
 async def get_main():
-    message = "Welcome to the calendar! The time is currently: " + str(datetime.now())
-    return {"message": message}
+    return {"message": "Welcome to the calendar! The time is currently: " + str(datetime.now())}
 
 @app.get("/today")
 async def get_today():
-    return {"date_time": str(datetime.now())}
+    return {"date_time": str(datetime.now()), "events_today": app_db.dates[date.today()]}
 
 @app.get("/events")
 async def get_events():
-    return app_db.events
+    return {"events": app_db.events}
+
+@app.get("/events/ids")
+async def get_event_ids():
+    return {"ids": [elem for elem in app_db.events.keys()]}
 
 @app.post("/events/new")
 async def add_event(new_event: Event):
     db_event = fill_db_event(new_event)
     id = app_db.add_event(db_event)
-    return app_db.events[id]
+    return {"event": app_db.events[id]}
 
 @app.delete("/events/remove/{id}")
-async def remove_event(id: UUID, should_return: bool = True):
+async def remove_event(id: UUID, should_return: bool = False):
     event = app_db.delete_event(id)
     if not should_return:
         return {}
-    return event
+    return {"event": event}
 
 @app.put("/events/update/{id}")
 async def update_event(id: UUID, new_event: Event):
     db_event = fill_db_event(new_event)
     db_event.id = id
     app_db.update_event(db_event)
-    return app_db.events[id]
+    return {"event": app_db.events[id]}
 
-@app.get("/events/{id}")
+@app.get("/events/id/{id}")
 async def get_event(id: UUID):
-    return app_db.events[id]
+    return {"event": app_db.events[id]}
 
 @app.get("/events/today")
 async def get_events_today():
-    return app_db.dates[date.today()]
+    return {"events": app_db.dates[date.today()]}
 
-@app.get("/events/{date}")
-async def get_events_date(date: date):
-    return app_db.dates[date]
+@app.get("/events/{year}/{month}/{day}")
+async def get_events_date(year: int, month: int, day: int, id_only: bool):
+    if id_only:
+        return {"events": [elem.id for elem in app_db.dates[date(year, month, day)]]}
+    return {"events": app_db.dates[date(year, month, day)]}
