@@ -18,6 +18,7 @@ class DataBase:
     def __init__(self):
         self.events: Dict[UUID, Event] = {}
         # TODO: consider swapping to a dict[year, dict[month, dict[day]]] ???
+        # It would better reflect the behavior of an actual database.
         self.dates: Dict[date, List[Event]] = defaultdict(list)
 
     def get_event(self, id: UUID) -> Event:
@@ -50,16 +51,3 @@ class DataBase:
     def _add_event_with_id_(self, new_event: Event):
         self.events[new_event.id] = new_event
         self.dates[new_event.date].append(new_event)
-
-def create_test_events(db: DataBase):
-    event_today = Event("Walk the dog")
-    event_today.date = date.today()
-    event_today.time = datetime.now().time()
-    event_today.description = "Don't forget the leash and bags"
-    event_today.location = "The neighborhood"
-
-    event_tomorrow = Event("Grocery Store Trip")
-    event_tomorrow.date = date.today() + timedelta(days=1)
-
-    db.add_event(event_today)
-    db.add_event(event_tomorrow)
