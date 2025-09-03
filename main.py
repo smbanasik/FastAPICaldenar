@@ -6,15 +6,16 @@
 # - Send out relative times to events (e.g. 3 days, 20 hours, 54 minutes from now)
 # - Allow for listing of events
 
+from contextlib import asynccontextmanager
 from uuid import UUID
 from datetime import date, time, datetime
-from typing import Annotated
+from typing import Tuple, Dict, List, Iterable
+import aiosqlite
 
 from fastapi import FastAPI, status
 from pydantic import BaseModel
 
-from .database import DataBase as DbDataBase
-from .database import Event as DbEvent
+from . import db_new as mydb
 
 class Event(BaseModel):
     id: UUID | None = None
@@ -24,16 +25,43 @@ class Event(BaseModel):
     description: str | None = None
     location: str | None = None
 
-app = FastAPI()
-app_db = DbDataBase()
+async def init_db():
+    async with aiosqlite.connect(DB_NAME) as db:
+        await mydb.table_drop(db, "events_prod")
 
-def fill_db_event(new_event: Event) -> DbEvent:
-    db_event = DbEvent(new_event.name)
-    db_event.date = new_event.date
-    db_event.time = new_event.time
-    db_event.description = new_event.description
-    db_event.location = new_event.location
-    return db_event
+        await mydb.table_create(db, "events_prod", 
+        ["id TEXT PRIMARY KEY", "year INTEGER NOT NULL", "month INTEGER NOT NULL",
+        "day INTEGER NOT NULL", "hour INTEGER", "minutes INTEGER",
+        "name TEXT NOT NULL", "location TEXT", "description TEXT"])
+
+        await mydb.event_insert(db, date.today(), "Test") # Test insert
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    await init_db()
+    yield
+    # Closing code as needed
+
+app = FastAPI(lifespan=lifespan)
+DB_NAME: str = "calendar.db"
+
+def convert_tuple(event: aiosqlite.Row) -> Dict[str, str]:
+    out = {}
+    out["id"] = event[0]
+    out["date"] = date(event[1], event[2], event[3])
+    if event[4] is not None:
+        out["time"] = time(event[4], event[5])
+    out["name"] = event[6]
+    if event[7] is not None:
+        out["location"] = event[7]
+    if event[8] is not None:
+        out["description"] = event[8]
+    return out
+
+def convert_tuples(events: Iterable[aiosqlite.Row]) -> List[Dict[str, str]]:
+    out = [convert_tuple(event) for event in events]
+    return out
 
 @app.get("/")
 async def get_main():
@@ -41,46 +69,133 @@ async def get_main():
 
 @app.get("/today")
 async def get_today():
-    return {"date_time": str(datetime.now()), "events": app_db.dates[date.today()]}
+
+    today: date = date.today()
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute('''SELECT * FROM events_prod
+        WHERE year = (?) AND month = (?) AND day = (?)
+        ''', [today.year, today.month, today.day])
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+
+    return {"date_time": str(datetime.now()), "events": convert_tuples(rows)}
 
 @app.get("/events")
 async def get_events():
-    return {"events": list(app_db.events.values())}
+    async with aiosqlite.connect(DB_NAME) as db:
+         cursor = await db.execute("SELECT * FROM events_prod")
+         rows = await cursor.fetchall()
+         await cursor.close()
+
+    return {"events": convert_tuples(rows)}
 
 @app.get("/events/ids")
 async def get_event_ids():
-    return {"ids": [elem for elem in app_db.events.keys()]}
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT id FROM events_prod")
+        rows = await cursor.fetchall()
+        await cursor.close()
+
+    return {"ids": rows}
+
 
 @app.post("/events/new", status_code=status.HTTP_201_CREATED)
 async def add_event(new_event: Event):
-    db_event = fill_db_event(new_event)
-    id = app_db.add_event(db_event)
-    return {"event": app_db.events[id]}
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        id_str = await mydb.event_insert(db, new_event.date, new_event.name,
+         (new_event.time.hour, new_event.time.minute), new_event.location, new_event.description)
+        cursor = await db.execute('''SELECT * FROM events_prod
+        WHERE id = (?)
+        ''', id_str)
+        row = await cursor.fetchone()
+        await cursor.close()
+
+    if row is not None:
+        return {"event": convert_tuple(row)}
+    else: # TODO: throw an error here
+        return {"event": ""}
+
 
 @app.delete("/events/remove/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_event(id: UUID, should_return: bool = False):
-    event = app_db.delete_event(id)
-    if not should_return:
-        return {}
-    return {"event": event}
 
+    async with aiosqlite.connect(DB_NAME) as db:
+        row = None
+        if should_return:
+            cursor = await db.execute('''SELECT * FROM events_prod
+            WHERE id = (?)''', str(id))
+            row = await cursor.fetchone()
+            await cursor.close()
+
+            if row is None:
+                pass #TODO: raise error
+        
+        await db.execute('''DELETE FROM events_prod
+        WHERE id = (?)''', str(id))
+
+        if row is not None:
+            return {"event": convert_tuple(row)}
+        return {}
+
+'''
 @app.put("/events/update/{id}", status_code=status.HTTP_201_CREATED)
 async def update_event(id: UUID, new_event: Event):
     db_event = fill_db_event(new_event)
     db_event.id = id
     app_db.update_event(db_event)
     return {"event": app_db.events[id]}
+'''
+
 
 @app.get("/events/ids/{id}")
 async def get_event(id: UUID):
-    return {"event": app_db.events[id]}
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute('''SELECT * FROM events_prod
+        WHERE id = (?)''', str(id))
+        row = await cursor.fetchone()
+        await cursor.close()
+
+    if row is not None:
+        return {"event": convert_tuple(row)}
+    else: # TODO: throw an error here
+        return {"event": ""}
+
 
 @app.get("/events/today")
 async def get_events_today():
-    return {"events": app_db.dates[date.today()]}
+    today: date = date.today()
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute('''SELECT * FROM events_prod
+        WHERE year = (?) AND month = (?) AND day = (?)
+        ''', [today.year, today.month, today.day])
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+
+    return {"events": convert_tuples(rows)}
+
 
 @app.get("/events/{year}/{month}/{day}")
 async def get_events_date(year: int, month: int, day: int, id_only: bool = False):
+    
+    selector = "*"
     if id_only:
-        return {"events": [{"id": elem.id} for elem in app_db.dates[date(year, month, day)]]}
-    return {"events": app_db.dates[date(year, month, day)]}
+        selector = "id"
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute('''SELECT (?) FROM events_prod
+        WHERE year = (?) AND month = (?) AND day = (?)
+        ''', [selector, year, month, day])
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+
+    if id_only:
+        return {"events": [{"id": elem} for elem in rows]}
+    else:
+        return {"events": convert_tuples(rows)}

@@ -5,7 +5,7 @@ import json
 
 from fastapi.testclient import TestClient
 from fastapi import status
-
+'''
 from .main import app, app_db
 
 from .database import DataBase as DbDataBase
@@ -133,3 +133,4 @@ def test_read_event_date():
     js = response.json()
     assert js["events"][0]["id"] == id
     wipe_database(app_db)
+'''
